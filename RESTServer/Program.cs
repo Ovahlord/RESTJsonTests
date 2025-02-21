@@ -16,6 +16,7 @@ namespace RESTServer
 
         public static async Task ListenToRequests()
         {
+            // Setting up the endpoint for the server.
             HttpListener listener = new()
             {
                 Prefixes = { $"{Shared.BaseUrl}{Shared.RpcTestUrl}" }
@@ -24,10 +25,10 @@ namespace RESTServer
             listener.Start();
             Console.WriteLine($"REST Server is now listening for requests on {Shared.BaseUrl}{Shared.RpcTestUrl}...");
 
+            // Listening to requests. We will continously keep listening to requests which we accomplish with this while loop
             while (true)
             {
                 HttpListenerContext context = await listener.GetContextAsync();
-
                 Console.WriteLine($"Received a request message with content length of {context.Request.ContentLength64}");
 
                 try
@@ -44,11 +45,16 @@ namespace RESTServer
                     }
 
                     Console.WriteLine($"Deserialized an object with a length of {jsonContent.Length} :)");
-                    context.Response.Close(); // and we're done here
+                    using StreamWriter writer = new(context.Response.OutputStream, System.Text.Encoding.UTF8);
+                    await writer.WriteLineAsync($"Server has successfully deserialized an object from a json string with length {jsonContent.Length}");
+                    await writer.FlushAsync();
+
+                    context.Response.Close(); // return the response
                 }
                 catch (Exception ex)
                 {
                     Console.Write(ex);
+                    context.Response.Close();
                 }
             }
         }
