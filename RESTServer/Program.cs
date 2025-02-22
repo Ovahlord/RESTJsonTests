@@ -1,6 +1,7 @@
-﻿using System.Net;
+﻿using Newtonsoft.Json;
 using RESTShared;
-using Newtonsoft.Json;
+using System.Net;
+
 
 namespace RESTServer
 {
@@ -23,7 +24,7 @@ namespace RESTServer
             };
 
             listener.Start();
-            Console.WriteLine($"REST Server is now listening for requests on {Shared.BaseUrl}{Shared.RpcTestUrl}...");
+            Console.WriteLine($"REST Server is now listening for requests on {Shared.BaseUrl}...");
 
             // Listening to requests. We will continously keep listening to requests which we accomplish with this while loop
             while (true)
@@ -44,11 +45,10 @@ namespace RESTServer
                         continue;
                     }
 
-                    Console.WriteLine($"Deserialized an object with a length of {jsonContent.Length} :)");
+                    Console.WriteLine($"Deserialized an object with a length of {jsonContent.Length}");
                     using StreamWriter writer = new(context.Response.OutputStream, System.Text.Encoding.UTF8);
-                    await writer.WriteLineAsync($"Server has successfully deserialized an object from a json string with length {jsonContent.Length}");
+                    await writer.WriteLineAsync($"[SERVER] Deserialized a rpc object with {obj.StringList.Count} string elements in it");
                     await writer.FlushAsync();
-
                     context.Response.Close(); // return the response
                 }
                 catch (Exception ex)

@@ -1,7 +1,5 @@
 ﻿using Newtonsoft.Json;
 using RESTShared;
-using System.Net.Http.Headers;
-using System.Net.Http.Json;
 
 namespace RESTClient
 {
@@ -22,35 +20,20 @@ namespace RESTClient
                         BaseAddress = new($"{Shared.BaseUrl}")
                     };
 
+                    // We will create an object full of junk data to serialize to push the json serialization in the next step to its limits
                     RpcObject rpcObj = new();
-
-                    {
-                        // Artificially bloating the rpc object with lots of strings to test the length limit of json strings.
-
-                        // This offset is used to redue the amount of data filled into the rpc object to estimate the amount of extra space needed for json to function again
-                        int cyclesOffset = -4000000;
-                        int cycles = int.MaxValue / Shared.SuperLongUselessString.Length + cyclesOffset;
-
-                        Console.WriteLine($"Filling the Rpc Object with lots of data...");
-                        for (int i = 0; i < cycles; ++i)
-                            rpcObj.StringList.Add(Shared.SuperLongUselessString);
-                    }
-
-                    Console.WriteLine("Done. Begin serializing the string...");
+                    rpcObj.BloatWithUselessData();
 
                     // Serialize the rpc object and initialize the content for the upcoming POST message
                     HttpContent content = new StringContent(JsonConvert.SerializeObject(rpcObj), System.Text.Encoding.UTF8, "application/json");
                     Task<HttpResponseMessage> response = client.PostAsync(Shared.RpcTestUrl, content);
 
-
-                    Console.WriteLine("Sent message. Awaiting response....");
+                    Console.WriteLine($"[CLIENT] Sent message with a serialized rpc object with {rpcObj.StringList.Count} string elements ...");
                     response.Wait();
 
                     // Response has been received. Reads its content, which contains information about the data that has been deserialized
-                    Console.WriteLine("Received response. Reading content...");
                     using StreamReader reader = new(response.Result.Content.ReadAsStream());
-                    string responseString = reader.ReadToEnd();
-                    Console.WriteLine($"Response content: {responseString}");
+                    Console.WriteLine(reader.ReadToEnd());
                 }
                 catch (Exception ex)
                 {
