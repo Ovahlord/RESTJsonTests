@@ -8,36 +8,85 @@ namespace RESTClient
         static void Main(string[] args)
         {
             Console.WriteLine("REST Client ready for testing. Please push a button to continue...");
+            Console.ReadLine();
 
-            while (true)
+            Console.WriteLine("Beginning tests...");
+
+            // Testing the 2gb string limit when serializing lots of data into json
+            testJsonSerialization(asString: true);
+            // and now again by using streams instead
+            testJsonSerialization(asString: false);
+
+            Console.WriteLine("All tests have concluded");
+            Thread.Sleep(5000);
+        }
+
+        private async static void testJsonSerialization(bool asString)
+        {
+            HttpClient client = new()
             {
+                BaseAddress = new($"{Shared.BaseUrl}")
+            };
+
+            RpcObject rpcObj = new();
+            rpcObj.BloatWithUselessData(0);
+
+            if (asString)
+            {
+                Console.WriteLine("[TEST] Serializing a 2gb object into json as string");
+
                 try
                 {
-                    Console.ReadLine();
+                    string jsonContent = JsonConvert.SerializeObject(rpcObj);
+                    HttpContent content = new StringContent(jsonContent, System.Text.Encoding.UTF8, "application/json");
 
-                    HttpClient client = new()
-                    {
-                        BaseAddress = new($"{Shared.BaseUrl}")
-                    };
+                    HttpResponseMessage response = await client.PostAsync(Shared.RpcTestUrl, content);
 
-                    // We will create an object full of junk data to serialize to push the json serialization in the next step to its limits
-                    RpcObject rpcObj = new();
-                    rpcObj.BloatWithUselessData();
-
-                    // Serialize the rpc object and initialize the content for the upcoming POST message
-                    HttpContent content = new StringContent(JsonConvert.SerializeObject(rpcObj), System.Text.Encoding.UTF8, "application/json");
-                    Task<HttpResponseMessage> response = client.PostAsync(Shared.RpcTestUrl, content);
-
-                    Console.WriteLine($"[CLIENT] Sent message with a serialized rpc object with {rpcObj.StringList.Count} string elements ...");
-                    response.Wait();
-
-                    // Response has been received. Reads its content, which contains information about the data that has been deserialized
-                    using StreamReader reader = new(response.Result.Content.ReadAsStream());
-                    Console.WriteLine(reader.ReadToEnd());
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine(ex);
+                    if (ex.GetType() == typeof(System.OutOfMemoryException))
+                    {
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        Console.WriteLine("An out of memory exception orrured.");
+                        Console.ResetColor();
+                    }
+                    else
+                        Console.WriteLine(ex);
+                    return;
+                }
+            }
+            else
+            {
+                Console.WriteLine("[TEST] Serializing a 2gb object into json as stream");
+
+                try
+                {
+                    JsonSerializer serializer = new();
+
+                    using MemoryStream stream = new();
+                    using StreamWriter writer = new(stream);
+                    using JsonTextWriter jsonWriter = new(writer);
+
+                    serializer.Serialize(jsonWriter, rpcObj);
+                    await stream.FlushAsync();
+
+                    // In .net we can also go for JsonContent.Create to accomplish this.
+
+                    HttpContent content = new StreamContent(stream);
+                    HttpResponseMessage response = await client.PostAsync(Shared.RpcTestUrl, content);
+                }
+                catch (Exception ex)
+                {
+                    if (ex.GetType() == typeof(System.OutOfMemoryException))
+                    {
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        Console.WriteLine("An out of memory exception orrured.");
+                        Console.ResetColor();
+                    }
+                    else
+                        Console.WriteLine(ex);
+                    return;
                 }
             }
         }
