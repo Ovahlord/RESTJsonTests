@@ -7,7 +7,7 @@
         public void BloatWithUselessData(int cyclesOffset)
         {
             // This offset is used to redue the amount of data filled into the rpc object to estimate the amount of extra space needed for json to function again
-            int cycles = int.MaxValue / Shared.SuperLongUselessString.Length + cyclesOffset;
+            int cycles = int.MaxValue / (Shared.SuperLongUselessString.Length * sizeof(char)) + cyclesOffset;
 
             Console.WriteLine($"Filling the Rpc Object with lots of data...");
             for (int i = 0; i < cycles; ++i)

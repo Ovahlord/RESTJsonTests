@@ -7,7 +7,6 @@ namespace RESTServer
 {
     internal class Program
     {
-
         static void Main(string[] args)
         {
             Task listen = ListenToRequests();
@@ -29,32 +28,52 @@ namespace RESTServer
             // Listening to requests. We will continously keep listening to requests which we accomplish with this while loop
             while (true)
             {
-                HttpListenerContext context = await listener.GetContextAsync();
-                Console.WriteLine($"Received a request message with content length of {context.Request.ContentLength64}");
-
                 try
                 {
-                    using StreamReader reader = new(context.Request.InputStream, context.Request.ContentEncoding);
-                    string jsonContent = await reader.ReadToEndAsync();
+                    HttpListenerContext context = await listener.GetContextAsync();
+                    RpcObject? rpcObj = null;
+                    HttpListenerRequest request = context.Request;
+                    Console.WriteLine($"Content length = {request.ContentLength64}");
 
-                    RpcObject? obj = JsonConvert.DeserializeObject<RpcObject>(jsonContent);
-                    if (obj == null)
+                    if (request.ContentType == "application/json")
                     {
-                        Console.WriteLine($"Tried to deserialize an object with a length of {jsonContent.Length} but no object as deserialized :(");
+                        Console.WriteLine("Content type is Json");
+
+                        using StreamReader reader = new(request.InputStream, request.ContentEncoding);
+                        string jsonContent = await reader.ReadToEndAsync();
+
+                        rpcObj = JsonConvert.DeserializeObject<RpcObject>(jsonContent);
+                    }
+                    else
+                    {
+                        JsonSerializer serializer = new();
+                        using MemoryStream stream = new();
+                        await request.InputStream.CopyToAsync(stream);
+                        stream.Position = 0;
+
+                        using StreamReader reader = new(stream, System.Text.Encoding.UTF8);
+                        using JsonTextReader jsonReader = new(reader);
+                        rpcObj = serializer.Deserialize<RpcObject>(jsonReader);
+                    }
+
+                    if (rpcObj == null)
+                    {
+                        Console.WriteLine($"Could not deserialize rpc object provided by the request");
                         context.Response.Close();
                         continue;
                     }
 
-                    Console.WriteLine($"Deserialized an object with a length of {jsonContent.Length}");
-                    using StreamWriter writer = new(context.Response.OutputStream, System.Text.Encoding.UTF8);
-                    await writer.WriteLineAsync($"[SERVER] Deserialized a rpc object with {obj.StringList.Count} string elements in it");
-                    await writer.FlushAsync();
+                    //using StreamWriter writer = new(context.Response.OutputStream, System.Text.Encoding.UTF8);
+                    //await writer.WriteLineAsync($"[SERVER] Deserialized a rpc object with {rpcObj.StringList.Count} string elements in it");
+                    //await writer.FlushAsync();
                     context.Response.Close(); // return the response
                 }
                 catch (Exception ex)
                 {
                     Console.Write(ex);
-                    context.Response.Close();
+                    using FileStream fs = new("crashlog.txt", FileMode.Append);
+                    using StreamWriter writer = new(fs);
+                    writer.WriteLine(ex);
                 }
             }
         }
